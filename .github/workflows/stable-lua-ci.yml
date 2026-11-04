@@ -1,0 +1,44 @@
+name: Lua-only STABLE offline checks + private test artifact
+
+on:
+  push:
+    branches: [ue4ss-stable-rebuild]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  stable-lua-offline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4 runtime
+        run: sudo apt-get update && sudo apt-get install -y liblua5.4-0
+      - name: Lua simulated lifecycle tests
+        run: python3 tests/runner.py
+      - name: Original profile and forbidden API gate
+        run: python3 verify.py
+      - name: Build drag-and-drop STABLE development test ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d staging/OblivionRemastered/Binaries/Win64/ue4ss/Mods/MagicProjectileLights/Scripts
+          cp src/MagicProjectileLights/Scripts/main.lua staging/OblivionRemastered/Binaries/Win64/ue4ss/Mods/MagicProjectileLights/Scripts/main.lua
+          cp src/MagicProjectileLights/enabled.txt staging/OblivionRemastered/Binaries/Win64/ue4ss/Mods/MagicProjectileLights/enabled.txt
+          cp README_STABLE.md staging/README_STABLE.md
+          cp CHANGELOG_STABLE.md staging/CHANGELOG_STABLE.md
+          cp README_MEMORY_ZIP_POLICY.md staging/README_MEMORY_ZIP_POLICY.md
+          (cd staging && zip -q -r "../Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip" .)
+          unzip -t Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip
+          sha256sum Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip > Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip.sha256
+      - name: Attach unverified test artifact, not a release
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spell-Light-UE4SS-STABLE-LUA-DEV1-UNVERIFIED
+          path: |
+            Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip
+            Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
