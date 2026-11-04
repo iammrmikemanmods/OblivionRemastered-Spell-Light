@@ -31,7 +31,7 @@ jobs:
           cp CHANGELOG_STABLE.md stage/Mods/MagicProjectileLights/CHANGELOG_STABLE.md
           cp README_MEMORY_ZIP_POLICY.md stage/Mods/MagicProjectileLights/README_MEMORY_ZIP_POLICY.md
           cp docs/STABLE_EFFECT_AUDIT.md stage/Mods/MagicProjectileLights/EFFECT_AUDIT.md
-          (cd stage && find Mods/MagicProjectileLights -type f -print0 | sort -z | xargs -0 sha256sum > Mods/MagicProjectileLights/SHA256SUMS.txt)
+          (cd stage && find Mods/MagicProjectileLights -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > Mods/MagicProjectileLights/SHA256SUMS.txt)
           (cd stage && zip -q -r ../Spell_Light_Dynamic_Shadows_v1.1.0_UE4SS_STABLE_Vortex.zip Mods)
           unzip -t Spell_Light_Dynamic_Shadows_v1.1.0_UE4SS_STABLE_Vortex.zip
           mkdir -p extracted
