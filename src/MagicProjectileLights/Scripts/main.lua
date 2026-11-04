@@ -323,7 +323,7 @@ end
 -- Avoids paths used as object locators and all periodic actor enumeration.
 local accentCount, liveCount = 0, 0
 local scopedVisualHooks = {}
-local elapsedTicks, diagnosticStarts = 0, 0
+local elapsedTicks, diagnosticStarts, validationAccumulator = 0, 0, 0
 local maxLoggedStarts, maxLoggedCreates = 12, 12
 
 local function ownerAddress(actor)
@@ -466,7 +466,7 @@ local function add(actor, startParameters)
     end
     if actor:IsActorBeingDestroyed() or actor.bHidden then return end
     if not valid(actor.RootComponent) then
-        if diagnosticStarts < maxLoggedStarts then log("CREATE_SKIPPED no root | " .. key) end
+        if debugEnabled and diagnosticStarts < maxLoggedStarts then log("CREATE_SKIPPED no root | " .. key) end
         return
     end
     local parent = attachmentFor(actor)
@@ -492,7 +492,7 @@ local function add(actor, startParameters)
     if not valid(pointClass) then pointClass = StaticFindObject("/Script/Engine.PointLightComponent") end
     if not valid(pointClass) then error("PointLightComponent class unavailable") end
     startAttemptCount = startAttemptCount + 1
-    if startAttemptCount <= maxLoggedCreates then
+    if debugEnabled and startAttemptCount <= maxLoggedCreates then
         log(string.format("CREATE_ATTEMPT family=%s phase=%s intensity=%.3f radius=%.3f",
             profile.family, profile.phase, profile.lumens, profile.radius))
     end
@@ -527,7 +527,7 @@ local function add(actor, startParameters)
     end)
     if not ok then remove(key, "creation failed"); error(err) end
     created = created + 1
-    if not firstLightLogged or created <= maxLoggedCreates then
+    if debugEnabled and (not firstLightLogged or created <= maxLoggedCreates) then
         log(string.format("FIRST_LIGHT_CREATED family=%s phase=%s intensity=%s radius=%s cast=%s dynamic=%s parent=%s",
             profile.family, profile.phase, read(light,"Intensity"),
             read(light,"AttenuationRadius"), read(light,"CastShadows"),
@@ -547,10 +547,11 @@ end
 local function started(context, parameters, source)
     local actor = unwrap(context)
     local ok, err = pcall(function()
+        if not valid(actor) or not actor:IsA("/Script/Altar.VMagicSpellVFXBlueprint") then return end
         local profile = profileFor(actor)
         if not profile then return end
         startEventCount = startEventCount + 1
-        if startEventCount <= maxLoggedStarts then
+        if debugEnabled and startEventCount <= maxLoggedStarts then
             log("VISUAL_START source=" .. source .. " family=" .. profile.family ..
                 " phase=" .. profile.phase .. " | " .. actor:GetFullName())
         end
@@ -575,8 +576,24 @@ local function maintenance(dt)
     if liveCount == 0 and accentCount == 0 then return end
     dt = math.max(0, math.min(tonumber(dt) or 0, 0.25))
     if dt <= 0 then return end
+    -- Only inspect the at-most 8+4 owned entries; never search Unreal's world.
+    -- 10 Hz validity checks mirror original cleanup of hidden/dormant visuals.
+    validationAccumulator = validationAccumulator + dt
+    local inspectOwners = validationAccumulator >= 0.10
+    if inspectOwners then validationAccumulator = validationAccumulator % 0.10 end
     local expired = {}
     for key, entry in pairs(active) do
+        if inspectOwners then
+            local ok, usable = pcall(function()
+                return valid(entry.actor) and valid(entry.light)
+                    and not entry.actor:IsActorBeingDestroyed()
+                    and not entry.actor.bHidden and valid(entry.actor.RootComponent)
+            end)
+            if not ok or not usable then
+                expired[#expired + 1] = key
+                goto next_light
+            end
+        end
         entry.elapsed = entry.elapsed + dt
         local profile = entry.profile
         local fade = profile.fade or 0
@@ -595,10 +612,21 @@ local function maintenance(dt)
             end
         end
         if entry.elapsed >= profile.lifetime then expired[#expired + 1] = key end
+        ::next_light::
     end
-    for _, key in ipairs(expired) do remove(key, "lifetime deadline") end
+    for _, key in ipairs(expired) do remove(key, "lifetime or inactive visual") end
     expired = {}
     for key, entry in pairs(accents) do
+        if inspectOwners then
+            local ok, usable = pcall(function()
+                return valid(entry.actor) and valid(entry.light)
+                    and valid(entry.source) and entry.source:IsActive()
+            end)
+            if not ok or not usable then
+                expired[#expired + 1] = key
+                goto next_accent
+            end
+        end
         entry.elapsed = entry.elapsed + dt
         while entry.fadeStep < 4 do
             local nextStep = entry.fadeStep + 1
@@ -612,8 +640,9 @@ local function maintenance(dt)
             if not ok then reportError("accent fade", err) end
         end
         if entry.elapsed >= 0.2 then expired[#expired + 1] = key end
+        ::next_accent::
     end
-    for _, key in ipairs(expired) do removeAccent(key, "accent deadline") end
+    for _, key in ipairs(expired) do removeAccent(key, "accent deadline or inactive emitter") end
 end
 
 local function getPawn(controller)
@@ -653,7 +682,7 @@ local function setupTick(pawn, source)
         end)
         tickPaths[path] = {preId,postId}
         heartbeatReady = true
-        log("STABLE_TICK_HOOK_INSTALLED " .. path .. " via " .. source)
+        debugLog("STABLE_TICK_HOOK_INSTALLED " .. path .. " via " .. source)
     end)
     if not ok then reportError("tick hook " .. source, err) end
 end
@@ -671,7 +700,7 @@ local function installControllerBootstrap(path)
             function() end,
             function(context) controllerReady(context, path) end)
         bootPaths[path] = {preId,postId}
-        log("BOOTSTRAP_HOOK " .. path)
+        debugLog("BOOTSTRAP_HOOK " .. path)
     end)
     if not ok then reportError("bootstrap hook " .. path, err) end
 end
@@ -681,7 +710,7 @@ end
 -- no NotifyOnNewObject or pathname re-resolution is necessary.
 local function registerEvent(name, fn)
     local ok, err = pcall(function() RegisterCustomEvent(name, fn) end)
-    if ok then log("EVENT_REGISTRATION_REQUESTED " .. name)
+    if ok then debugLog("EVENT_REGISTRATION_REQUESTED " .. name)
     else reportError("event " .. name, err) end
 end
 registerEvent("OnStartPlay", function(context, params)

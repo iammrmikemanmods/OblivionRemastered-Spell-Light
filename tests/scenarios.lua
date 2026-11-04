@@ -108,7 +108,7 @@ assertion(fire.lights[1].CastShadows==true and fire.lights[1].CastDynamicShadows
 assertion(fire.lights[1].finished and fire.lights[1].parent==root,'component registered and attached')
 events.OnStartPlay(fire)
 assertion(#fire.lights==1,'duplicate OnStartPlay must not duplicate component')
-assertion(table.concat(logs,'\n'):find('FIRST_LIGHT_CREATED',1,true),'first-light evidence')
+assertion(not table.concat(logs,'\n'):find('FIRST_LIGHT_CREATED',1,true),'debug output must be OFF by default')
 
 events.OnStopPlay(fire)
 assertion(fire.lights[1].destroyed==true,'OnStopPlay cleanup')
@@ -167,5 +167,71 @@ hooks[startPath].pre(fallback)
 assertion(#fallback.lights==1,'per-class hook does not duplicate first light')
 events.OnStartPlay=originalEvent
 assertion(lightSerial==6,'expected 6 components total; got '..lightSerial)
+
+-- Diagnostic events must be entirely gated until Ctrl+F7 enables debug.
+local debugLight=makeVisual(fireClass)
+calls['key'..Key.F7]()
+events.OnStartPlay(debugLight)
+assertion(table.concat(logs,'\n'):find('FIRST_LIGHT_CREATED',1,true),'Ctrl+F7 should enable creation readback')
+events.OnStopPlay(debugLight)
+calls['key'..Key.F7]()
+local quietLogCount=#logs
+
+-- Exercise every class in the actual 1.0-compatible profile table, not a
+-- hand-picked set of commonly cast spells.
+local sourceFile=assert(io.open(MOD_PATH,'r'))
+local source=sourceFile:read('*a'); sourceFile:close()
+local i=assert(source:find('local Profiles = (function()',1,true))
+local j=assert(source:find('-- END SHARED PROFILE TABLE',i,true))
+local profileCode=source:sub(i,j-1)..'\nreturn Profiles'
+local profileFunction=assert(load(profileCode,'@exact-original-profile','t',_G))
+local Profiles=profileFunction()
+local exercised, phases, families=0,{},{}
+for className, entry in pairs(Profiles.Classes) do
+    local expected=assert(Profiles.resolve(className))
+    local v=makeVisual(makeClass(className))
+    events.OnStartPlay(v)
+    assertion(#v.lights==1,'failed light creation for '..className)
+    local light=v.lights[1]
+    assertion(light.Intensity==expected.lumens, 'intensity drift '..className)
+    assertion(light.AttenuationRadius==expected.radius, 'radius drift '..className)
+    assertion(light.SourceRadius==expected.sourceRadius, 'sourceRadius drift '..className)
+    assertion(light.CastShadows and light.CastDynamicShadows,'missing shadow '..className)
+    assertion(light.parent==root and light.finished,'failed attach '..className)
+    local c=light.LightColor
+    assertion(c.R==expected.color.R and c.G==expected.color.G and c.B==expected.color.B, 'color drift '..className)
+    events.OnStartPlay(v)
+    assertion(#v.lights==1,'duplicate created for '..className)
+    events.OnStopPlay(v)
+    assertion(light.destroyed,'cleanup failed for '..className)
+    phases[entry.phase]=(phases[entry.phase] or 0)+1
+    families[entry.family]=true
+    exercised=exercised+1
+end
+for className in pairs(Profiles.Excluded) do
+    local ignored=makeVisual(makeClass(className))
+    events.OnStartPlay(ignored)
+    assertion(#ignored.lights==0,'excluded visual must not acquire light: '..className)
+end
+local familiesCount=0;for _ in pairs(families) do familiesCount=familiesCount+1 end
+assertion(familiesCount==38,'expected 38 families, got '..familiesCount)
+assertion(exercised==127,'expected all 127 visual classes, got '..exercised)
+assertion(phases.Projectile==30 and phases.Casting==38 and phases.HitEffect==29 and phases.AreaEffect==30,'phase inventory mismatch')
+assertion(#logs==quietLogCount,'effect creation logged while debug OFF')
+
+-- An owner hidden without OnStopPlay must not keep its light for ten seconds.
+local hidden=makeVisual(fireClass)
+events.OnStartPlay(hidden)
+hidden.bHidden=true
+restart.post(controller) -- map pre reset player bootstrap; new level restarted player
+tick.pre(player,0.12)
+assertion(hidden.lights[1].destroyed,'hidden visual not cleaned by bounded maintenance')
+
+-- Unrelated actors that have an OnStartPlay event must be skipped.
+local ignored=makeVisual(fireClass)
+function ignored:IsA() return false end
+events.OnStartPlay(ignored)
+assertion(#ignored.lights==0,'non-spell OnStartPlay should be ignored')
+
 assertion(startEventCount==nil,'source locals should not leak as globals')
 print('PASS all scenarios')

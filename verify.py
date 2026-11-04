@@ -12,5 +12,10 @@ for bad in ('GetAllActorsOfClass', 'LoopInGameThreadWithDelay(', 'ExecuteInGameT
     assert bad not in s,'Forbidden STABLE/periodic API: '+bad
 for required in ('FIRST_LIGHT_CREATED','RegisterCustomEvent','RegisterEndPlayPreHook','RegisterLoadMapPreHook'):
     assert required in s,'Missing required mechanism: '+required
-print('Original profile integrity and STABLE API checks PASS')
+assert '    Debug = false,' in s,'Debug is not OFF by default'
+assert 'if debugEnabled and startEventCount <= maxLoggedStarts then' in s,'Unconditional spell-start logs'
+assert 'if debugEnabled and startAttemptCount <= maxLoggedCreates then' in s,'Unconditional creation attempts'
+assert 'if debugEnabled and (not firstLightLogged or created <= maxLoggedCreates) then' in s,'Unconditional light-success logs'
+assert 'local inspectOwners = validationAccumulator >= 0.10' in s,'Bounded owner validation missing'
+print('Original profile integrity, debug-off, bounded lifecycle and STABLE API checks PASS')
 print('Source SHA256:',hashlib.sha256(script.read_bytes()).hexdigest())

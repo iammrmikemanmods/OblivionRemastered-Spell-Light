@@ -1,4 +1,4 @@
-name: Lua-only STABLE offline checks + private test artifact
+name: UE4SS STABLE Lua audited offline checks and Nexus/Vortex ZIP
 
 on:
   push:
@@ -8,37 +8,42 @@ on:
   workflow_dispatch:
 
 jobs:
-  stable-lua-offline:
+  lua-stable:
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Install Lua 5.4 runtime
+      - name: Install Lua 5.4
         run: sudo apt-get update && sudo apt-get install -y liblua5.4-0
-      - name: Lua simulated lifecycle tests
+      - name: Test all original effect profiles and lifecycle
         run: python3 tests/runner.py
-      - name: Original profile and forbidden API gate
+      - name: Validate source and no heavy polling / debug-off
         run: python3 verify.py
-      - name: Build drag-and-drop STABLE development test ZIP
+      - name: Build Nexus Vortex-ready zip
         shell: bash
         run: |
           set -euo pipefail
-          install -d staging/OblivionRemastered/Binaries/Win64/ue4ss/Mods/MagicProjectileLights/Scripts
-          cp src/MagicProjectileLights/Scripts/main.lua staging/OblivionRemastered/Binaries/Win64/ue4ss/Mods/MagicProjectileLights/Scripts/main.lua
-          cp src/MagicProjectileLights/enabled.txt staging/OblivionRemastered/Binaries/Win64/ue4ss/Mods/MagicProjectileLights/enabled.txt
-          cp README_STABLE.md staging/README_STABLE.md
-          cp CHANGELOG_STABLE.md staging/CHANGELOG_STABLE.md
-          cp README_MEMORY_ZIP_POLICY.md staging/README_MEMORY_ZIP_POLICY.md
-          (cd staging && zip -q -r "../Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip" .)
-          unzip -t Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip
-          sha256sum Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip > Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip.sha256
-      - name: Attach unverified test artifact, not a release
-        uses: actions/upload-artifact@v4
+          install -d stage/Mods/MagicProjectileLights/Scripts
+          cp src/MagicProjectileLights/Scripts/main.lua stage/Mods/MagicProjectileLights/Scripts/main.lua
+          cp src/MagicProjectileLights/enabled.txt stage/Mods/MagicProjectileLights/enabled.txt
+          cp README_STABLE.md stage/Mods/MagicProjectileLights/README_STABLE.md
+          cp CHANGELOG_STABLE.md stage/Mods/MagicProjectileLights/CHANGELOG_STABLE.md
+          cp README_MEMORY_ZIP_POLICY.md stage/Mods/MagicProjectileLights/README_MEMORY_ZIP_POLICY.md
+          cp docs/STABLE_EFFECT_AUDIT.md stage/Mods/MagicProjectileLights/EFFECT_AUDIT.md
+          (cd stage && find Mods/MagicProjectileLights -type f -print0 | sort -z | xargs -0 sha256sum > Mods/MagicProjectileLights/SHA256SUMS.txt)
+          (cd stage && zip -q -r ../Spell_Light_Dynamic_Shadows_v1.1.0_UE4SS_STABLE_Vortex.zip Mods)
+          unzip -t Spell_Light_Dynamic_Shadows_v1.1.0_UE4SS_STABLE_Vortex.zip
+          mkdir -p extracted
+          (cd extracted && unzip -qq ../Spell_Light_Dynamic_Shadows_v1.1.0_UE4SS_STABLE_Vortex.zip && sha256sum -c Mods/MagicProjectileLights/SHA256SUMS.txt)
+          test -f extracted/Mods/MagicProjectileLights/Scripts/main.lua
+          test -f extracted/Mods/MagicProjectileLights/enabled.txt
+          sha256sum Spell_Light_Dynamic_Shadows_v1.1.0_UE4SS_STABLE_Vortex.zip > Spell_Light_Dynamic_Shadows_v1.1.0_UE4SS_STABLE_Vortex.zip.sha256
+      - uses: actions/upload-artifact@v4
         with:
-          name: Spell-Light-UE4SS-STABLE-LUA-DEV1-UNVERIFIED
+          name: Spell-Light-UE4SS-STABLE-Nexus-Vortex
           path: |
-            Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip
-            Spell_Light_1.1.0_STABLE_LUA_DEV1_TEST_ONLY.zip.sha256
+            Spell_Light_Dynamic_Shadows_v1.1.0_UE4SS_STABLE_Vortex.zip
+            Spell_Light_Dynamic_Shadows_v1.1.0_UE4SS_STABLE_Vortex.zip.sha256
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90

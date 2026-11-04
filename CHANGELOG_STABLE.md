@@ -1,13 +1,13 @@
-# Spell Light Dynamic Shadows — STABLE development changelog
+# Spell Light 1.1.0 — UE4SS STABLE Lua port
 
-## 1.1.0-STABLE-LUA-DEV1 — offline tested, gameplay unverified
+- Based on original NEW 1.0, not failed RC1–RC3.
+- Exact original 38-family/127-visual profile parity; original light intensity, colour, attenuation, source radius and dynamic shadow flags preserved.
+- Confirmed live fire casting/projectile/area lights on STABLE v3.0.1-394-g437a8ff.
+- Uses the live OnStartPlay actor. Removed repeated world discovery and unreliable actor pathname re-resolution.
+- STABLE Lua table-compatible component discovery; game-thread bounded fade and lifecycle.
+- Debug logging off by default; Ctrl+F7 explicitly enables verbose event/light readback; errors remain bounded.
+- Bounded 10-Hz owned-actor/emitter validation while effects are active; no full-world scans, idle light-maintenance loop returns immediately.
+- Exhaustive offline scenario checks for every one of 127 visual profiles, exclusions, duplicate handling, shadows, hidden cleanup, and activation.
+- Nexus/Vortex-friendly UE4SS-relative layout: Mods/MagicProjectileLights/ .
 
-- Rebuilt from the original working 1.0; **not** based on RC1, RC2 or RC3.
-- Kept the original profile data and visual light configuration unchanged.
-- Added STABLE short-name `RegisterCustomEvent` callbacks for `OnStartPlay`, `OnStopPlay` and `OnChangeLevel`.
-- Added one-time controller/player bootstrapping, per-class BeginPlay fallback, EndPlay and map cleanup.
-- Replaced NEW-only delayed APIs with bounded game-thread Lua light maintenance. Timing uses gameplay DeltaSeconds; this is an intentional documented difference from NEW.
-- Removed recurring world actor scans, full actor pathname re-lookup and RC3 discovery loops.
-- Adapted local component queries to STABLE's Lua table return.
-- Added explicit first-light creation and settings readback logs.
-- Offline mocks and profile parity checks pass. **Native STABLE delivery, shadows, in-game behavior and frame times still need testing.**
+**Remaining validation:** non-fire live gameplay coverage, frame-time benchmarking, reload/streaming stress, full mod-stack compatibility. STABLE gameplay-clock timing differs from NEW steady-clock timing.

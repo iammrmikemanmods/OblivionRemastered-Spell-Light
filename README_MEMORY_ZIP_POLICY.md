@@ -1,5 +1,5 @@
-# Memory & ZIP integrity policy
+# ZIP integrity & rollback policy
 
-This is a private **unverified** STABLE test candidate. The game-root archive contains the real `OblivionRemastered/Binaries/Win64/ue4ss/Mods/MagicProjectileLights/Scripts/main.lua` and `enabled.txt`. It does not replace UE4SS.dll, game assets or other mods. Back up original 1.0 outside the game before testing. Extract and inspect its source and SHA256 digest before release.
+Official Vortex packaging is rooted at `Mods/MagicProjectileLights/` relative to the UE4SS directory. The archive includes the real `Scripts/main.lua`, `enabled.txt`, install/verification docs and SHA256SUMS.txt. It must not contain a loader DLL, other native binaries, placeholders, or modified UE4SS settings.
 
-An offline Lua mock is NOT proof of in-game compatibility. Missing first-cast lights, altered appearance, failed cleanup, crashes or frame-time regression reject this candidate. Never merge to main or publish a Nexus version until those checks are satisfied in Oblivion.
+Always back up the previous complete mod folder outside the game. Never install two versions simultaneously. On failure, disable/uninstall this package in Vortex, deploy changes and restore the backup. Archive integrity is verified separately from in-game functionality.
